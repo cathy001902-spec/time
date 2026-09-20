@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>考試時程表</title>
+  
+  <!-- 引入 Google Fonts: Klee One -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- 引入 Tailwind CSS (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 引入 Phosphor Icons (圖示庫) -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <style>
+    :root {
+      --chalk-white: #f8fafc;
+      --chalk-yellow: #fef08a;
+      --chalk-red: #fca5a5;
+      --chalk-blue: #93c5fd;
+      --chalk-green: #86efac;
+      --chalk-purple: #d8b4fe;
+      --board-bg: #2a3431; 
+    }
+    
+    body { 
+      font-family: 'Klee One', cursive, sans-serif; 
+      background-color: var(--board-bg);
+      color: var(--chalk-white);
+    }
+    
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.4); }
+    
+    .chalkboard-bg {
+      background-color: #26302c;
+      background-image: 
+        radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px),
+        radial-gradient(circle, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 32px 32px;
+      background-position: 0 0, 16px 16px;
+    }
+
+    .chalk-text { text-shadow: 0px 0px 3px rgba(255, 255, 255, 0.4), 0px 0px 8px rgba(255, 255, 255, 0.1); }
+    .chalk-text-yellow { color: var(--chalk-yellow); text-shadow: 0px 0px 4px rgba(254, 240, 138, 0.5); }
+    .chalk-text-red { color: var(--chalk-red); text-shadow: 0px 0px 4px rgba(252, 165, 165, 0.5); }
+
+    .chalk-box {
+      border: 2px solid rgba(255,255,255,0.6);
+      border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+      background: rgba(255,255,255,0.02);
+    }
+    .chalk-box:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.9);
+    }
+    .chalk-box-active {
+      border: 3px solid var(--chalk-yellow);
+      border-radius: 15px 255px 15px 225px / 225px 15px 255px 15px;
+      background: rgba(254, 240, 138, 0.05);
+    }
+
+    .wooden-ledge {
+      background: linear-gradient(to bottom, #bd8349, #7a4f27);
+      border-top: 2px solid #e1b483;
+      box-shadow: 0 -5px 15px rgba(0,0,0,0.5);
+      position: relative;
+    }
+    .chalk-piece {
+      position: absolute;
+      bottom: 6px;
+      width: 45px;
+      height: 12px;
+      border-radius: 3px;
+      box-shadow: inset -2px -2px 4px rgba(0,0,0,0.2), 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .chalk-input {
+      background: rgba(0,0,0,0.2);
+      border: none;
+      border-bottom: 2px dashed rgba(255,255,255,0.5);
+      color: var(--chalk-white);
+      font-family: 'Klee One', cursive;
+    }
+    .chalk-input:focus {
+      outline: none;
+      border-bottom-color: var(--chalk-yellow);
+      background: rgba(0,0,0,0.4);
+    }
+    ::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+      opacity: 0.7;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="antialiased overflow-hidden selection:bg-[#fef08a] selection:text-black chalkboard-bg h-screen flex flex-col relative">
+
+  <!-- 頂部設定按鈕 -->
+  <button onclick="openSettings()" class="absolute top-4 right-4 md:top-6 md:right-6 p-2 md:p-3 text-white/60 hover:text-white transition-colors duration-300 z-20 flex items-center justify-center rounded-full hover:bg-white/10" title="系統管理">
+    <i class="ph ph-gear-six text-3xl md:text-4xl chalk-text"></i>
+  </button>
+
+  <!-- 主容器 (移除滾動，改為高度滿版且內容置中) -->
+  <div class="flex-1 w-full flex flex-col min-h-0 overflow-hidden">
+    
+    <!-- 上方：巨大時鐘與叮嚀區塊 (高度自適應，字體放大) -->
+    <div class="w-full flex flex-col justify-center items-center pt-6 md:pt-10 pb-2 shrink-0 z-10">
+      <div id="clock-display" class="font-bold tracking-[0.1em] tabular-nums text-center chalk-text" style="font-size: clamp(6rem, 22vh, 25rem); line-height: 1;">
+        --:--:--
+      </div>
+      <div id="notes-display" class="text-2xl md:text-4xl mt-4 md:mt-6 tracking-widest chalk-text-yellow px-6 text-center max-w-5xl leading-relaxed">
+      </div>
+    </div>
+
+    <!-- 下方/中央：考試科目清單區塊 (動態填滿剩餘高度並置中卡片) -->
+    <div class="w-full max-w-[1600px] mx-auto px-4 md:px-8 pb-12 md:pb-16 pt-2 flex-1 flex flex-col justify-center items-center min-h-0">
+      <div id="schedule-container" class="flex flex-row flex-wrap justify-center items-center content-center gap-3 md:gap-5 w-full h-full overflow-hidden">
+        <!-- 內容由 JavaScript 動態生成 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 右下方：倒數計時器 (浮動) -->
+  <div id="countdown-container" class="fixed bottom-10 md:bottom-12 right-4 md:right-8 z-30 hidden transition-all duration-500 chalk-box p-4 md:p-5 bg-[#26302c]/95 backdrop-blur-md shadow-[0_12px_40px_rgba(0,0,0,0.6)] transform translate-y-0">
+    <div class="text-[var(--chalk-red)] text-xs md:text-sm font-bold tracking-[0.2em] mb-1 md:mb-2 flex items-center gap-2">
+      <i class="ph-fill ph-timer animate-pulse"></i> 本節剩餘時間
+    </div>
+    <div id="countdown-display" class="text-5xl md:text-7xl font-mono chalk-text-red tabular-nums text-center font-bold tracking-widest leading-none">
+      --:--
+    </div>
+  </div>
+  
+  <!-- 底部木頭粉筆槽裝飾 (固定於底部) -->
+  <div class="wooden-ledge fixed bottom-0 left-0 w-full h-4 md:h-6 z-40">
+    <div class="chalk-piece bg-[#fca5a5] left-[10%] rotate-[-15deg]"></div>
+    <div class="chalk-piece bg-[#f8fafc] left-[15%] rotate-[5deg]"></div>
+    <div class="chalk-piece bg-[#86efac] left-[45%] md:left-[50%] rotate-[20deg]"></div>
+    <div class="chalk-piece bg-[#93c5fd] right-[30%] rotate-[-10deg]"></div>
+    <div class="chalk-piece bg-[#fef08a] right-[25%] rotate-[12deg]"></div>
+    <div class="chalk-piece bg-[#d8b4fe] right-[5%] rotate-[-5deg]"></div>
+  </div>
+
+  <!-- 設定對話視窗 (Modal) -->
+  <div id="settings-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm justify-center items-center z-50 p-4 hidden transition-opacity duration-300">
+    <div class="w-full max-w-4xl flex flex-col overflow-hidden max-h-[90vh] shadow-2xl animate-[fadeIn_0.2s_ease-out] rounded-xl border-[12px] border-[#8b5a2b] relative chalkboard-bg">
+        
+        <div class="p-4 md:p-6 flex justify-between items-center shrink-0 border-b-2 border-white/20 bg-black/20">
+          <h3 class="text-xl md:text-2xl font-bold flex items-center gap-3 tracking-widest chalk-text">
+            <i class="ph ph-chalkboard-teacher text-3xl"></i> 系統管理與考程設定
+          </h3>
+          <button onclick="closeSettings()" class="p-2 text-white/60 hover:text-white transition-colors">
+            <i class="ph ph-x text-2xl"></i>
+          </button>
+        </div>
+
+        <div class="p-4 md:p-8 overflow-y-auto flex-1 flex flex-col md:flex-row gap-6 md:gap-8 min-h-0">
+          
+          <!-- 左欄：全局設定 -->
+          <div class="w-full md:w-5/12 flex flex-col gap-6">
+            <div class="chalk-box p-5 md:p-6 flex-1">
+              <h4 class="text-base md:text-lg font-bold text-[var(--chalk-yellow)] tracking-[0.2em] mb-4 md:mb-6 flex items-center gap-2 border-b-2 border-white/20 pb-3">
+                <i class="ph ph-sliders-horizontal"></i> 畫面顯示設定
+              </h4>
+              
+              <div class="space-y-4 md:space-y-6">
+                <label class="flex items-center gap-3 cursor-pointer group">
+                  <input type="checkbox" id="setting-countdown" onchange="autoSaveGlobalSettings()" class="w-5 h-5 rounded bg-black/20 border-white/50 text-[var(--chalk-yellow)] focus:ring-[var(--chalk-yellow)] cursor-pointer">
+                  <span class="text-lg md:text-xl chalk-text tracking-widest group-hover:text-[var(--chalk-yellow)] transition-colors">啟用右下方倒數計時</span>
+                </label>
+
+                <div class="pt-2">
+                  <label class="block text-lg md:text-xl font-bold text-white/90 mb-2 md:mb-3 tracking-widest chalk-text flex items-center gap-2">
+                    <i class="ph ph-chat-text"></i> 老師的小叮嚀
+                  </label>
+                  <textarea id="setting-notes" rows="3" onchange="autoSaveGlobalSettings()" placeholder="例如：請保持安靜，仔細檢查試卷！" class="w-full p-3 md:p-4 chalk-input text-lg md:text-xl resize-none rounded bg-black/20"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右欄：考程編輯 -->
+          <div class="w-full md:w-7/12 flex flex-col">
+            <h4 class="text-base md:text-lg font-bold text-white/80 tracking-[0.2em] mb-3 md:mb-4 flex items-center gap-2 border-l-4 border-white/60 pl-3">
+              黑板上的考程
+            </h4>
+            
+            <div class="p-4 md:p-5 chalk-box mb-4 md:mb-6 grid grid-cols-2 md:flex md:flex-wrap gap-3 items-end bg-white/5">
+              <div class="col-span-2 md:flex-1 md:min-w-[100px]">
+                <label class="block text-sm font-bold text-white/70 mb-1 md:mb-2 tracking-widest">科目名稱</label>
+                <input type="text" id="new-subject" placeholder="例：國文" class="w-full p-2 chalk-input text-base md:text-lg" />
+              </div>
+              <!-- 將寬度從原本的 w-20 加寬為 w-32 / w-40 -->
+              <div class="col-span-1 md:w-32 lg:w-40">
+                <label class="block text-sm font-bold text-white/70 mb-1 md:mb-2 tracking-widest">開始</label>
+                <input type="time" id="new-start" class="w-full p-2 chalk-input text-base md:text-lg" />
+              </div>
+              <div class="col-span-1 md:w-32 lg:w-40">
+                <label class="block text-sm font-bold text-white/70 mb-1 md:mb-2 tracking-widest">結束</label>
+                <input type="time" id="new-end" class="w-full p-2 chalk-input text-base md:text-lg" />
+              </div>
+              <button id="btn-submit-item" type="button" onclick="addEditingItem()" class="col-span-2 border-2 border-[var(--chalk-green)] text-[var(--chalk-green)] hover:bg-[var(--chalk-green)] hover:text-black p-2 flex items-center gap-1 font-bold transition-all w-full md:w-auto justify-center tracking-widest rounded shadow-sm text-sm md:text-base">
+                <i id="submit-icon" class="ph ph-plus text-lg"></i> <span id="submit-text">新增</span>
+              </button>
+            </div>
+
+            <div id="editing-list" class="space-y-2 md:space-y-3 overflow-y-auto max-h-[30vh] pr-2">
+            </div>
+          </div>
+        </div>
+
+        <div class="p-4 md:p-5 flex justify-end gap-4 shrink-0 border-t-2 border-white/20 bg-black/30">
+          <button onclick="closeSettings()" class="px-6 py-2 md:py-3 font-bold bg-white/10 text-white/90 hover:text-white border-2 border-white hover:bg-white hover:text-black rounded-lg transition-all tracking-widest text-base md:text-lg">
+            關閉視窗 (自動儲存)
+          </button>
+        </div>
+
+    </div>
+  </div>
+
+  <script>
+    const defaultData = {
+      schedule: [
+        { id: '1', subject: '國文', startTime: '08:10', endTime: '09:30' },
+        { id: '2', subject: '英文', startTime: '09:50', endTime: '11:10' },
+        { id: '3', subject: '數學', startTime: '11:30', endTime: '12:50' },
+      ],
+      settings: { showCountdown: true, teacherNotes: '各位同學，考試加油！細心作答喔！' }
+    };
+    
+    let appData = JSON.parse(JSON.stringify(defaultData));
+    
+    try {
+      const savedData = localStorage.getItem('boardAppData');
+      if (savedData) appData = JSON.parse(savedData);
+    } catch (e) {
+      console.error('無法讀取本地儲存資料', e);
+    }
+    
+    let editingSchedule = [];
+    let activeExamId = null;
+    let currentEditId = null; 
+
+    const formatTime = (date) => {
+      const h = String(date.getHours()).padStart(2, '0');
+      const m = String(date.getMinutes()).padStart(2, '0');
+      const s = String(date.getSeconds()).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    };
+
+    const isCurrentExam = (start, end, timeObj) => {
+      const currentMinutes = timeObj.getHours() * 60 + timeObj.getMinutes();
+      const [startH, startM] = start.split(':').map(Number);
+      const [endH, endM] = end.split(':').map(Number);
+      const startTotal = startH * 60 + startM;
+      const endTotal = endH * 60 + endM;
+      return currentMinutes >= startTotal && currentMinutes <= endTotal;
+    };
+
+    function renderSchedule() {
+      const container = document.getElementById('schedule-container');
+      
+      if (appData.schedule.length === 0) {
+        container.innerHTML = `
+          <div class="text-center text-white/50 mt-10 flex flex-col items-center w-full">
+            <i class="ph ph-wind text-5xl md:text-6xl mb-4 opacity-50"></i>
+            <p class="tracking-widest chalk-text text-lg md:text-xl">黑板上空空如也，請點擊右上角新增考程</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = appData.schedule.map(exam => {
+        const isActive = exam.id === activeExamId;
+        return `
+          <div class="p-3 md:p-4 transition-all duration-500 relative ${isActive ? 'chalk-box-active scale-105 shadow-[0_0_20px_rgba(254,240,138,0.15)] z-10' : 'chalk-box opacity-80 hover:opacity-100'} w-fit min-w-0 flex-shrink-0 group">
+            
+            ${isActive ? `<span class="absolute -top-3 -left-3 text-[var(--chalk-yellow)] border border-[var(--chalk-yellow)] bg-[#26302c] text-xs font-bold px-2 py-1 md:px-3 md:py-1.5 tracking-[0.2em] rounded-full animate-pulse whitespace-nowrap shadow-lg z-30">進行中</span>` : ''}
+
+            <div class="flex flex-col gap-1 md:gap-2 h-full justify-center pt-1">
+              
+              <!-- 科目名稱與圖示緊貼，移除所有不必要的空白 -->
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-2xl md:text-4xl font-bold tracking-widest leading-none ${isActive ? 'chalk-text-yellow' : 'chalk-text'}">
+                  ${exam.subject}
+                </span>
+                
+                <div class="flex gap-1 z-20 opacity-70 hover:opacity-100 transition-opacity">
+                  <button onclick="editFromMain('${exam.id}')" class="text-white/70 hover:text-[var(--chalk-yellow)] transition-colors bg-[#26302c]/50 rounded-full p-1.5" title="修改">
+                    <i class="ph ph-pencil-simple text-xl md:text-2xl"></i>
+                  </button>
+                  <button onclick="deleteFromMain('${exam.id}')" class="text-white/70 hover:text-[var(--chalk-red)] transition-colors bg-[#26302c]/50 rounded-full p-1.5" title="擦除">
+                    <i class="ph ph-eraser text-xl md:text-2xl"></i>
+                  </button>
+                </div>
+              </div>
+              
+              <!-- 下方時間區塊 -->
+              <div class="flex items-center gap-3 mt-1">
+                <i class="ph ${isActive ? 'ph-hourglass-high text-[var(--chalk-yellow)] animate-pulse' : 'ph-clock text-white/50'} text-3xl md:text-4xl"></i>
+                <div class="flex flex-col border-l-2 ${isActive ? 'border-[var(--chalk-yellow)]' : 'border-white/30'} pl-3 py-1 gap-1">
+                  <span class="tracking-[0.1em] font-mono text-xl md:text-3xl leading-none ${isActive ? 'chalk-text-yellow' : 'chalk-text'}">${exam.startTime}</span>
+                  <span class="tracking-[0.1em] font-mono text-xl md:text-3xl leading-none ${isActive ? 'chalk-text-yellow' : 'chalk-text'}">${exam.endTime}</span>
+                </div>
+              </div>
+              
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderEditingSchedule() {
+      const listContainer = document.getElementById('editing-list');
+      
+      if (editingSchedule.length === 0) {
+        listContainer.innerHTML = `<p class="text-center text-white/50 py-4 tracking-widest">無考程項目</p>`;
+        return;
+      }
+
+      listContainer.innerHTML = editingSchedule.map(item => `
+        <div class="flex justify-between items-center p-2 md:p-3 chalk-box bg-white/5">
+          <div class="flex items-center gap-2 md:gap-3 flex-wrap flex-1">
+            <!-- 確保設定清單裡的文字也不會有過寬的空白 -->
+            <span class="text-lg md:text-xl font-bold chalk-text tracking-widest">${item.subject}</span>
+            <span class="text-white/80 px-2 md:px-3 py-1 font-mono text-sm md:text-lg tracking-widest border-l-2 border-white/30">
+              ${item.startTime} - ${item.endTime}
+            </span>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <button onclick="editEditingItem('${item.id}')" class="text-white/50 hover:text-[var(--chalk-yellow)] p-1.5 md:p-2 transition-colors">
+              <i class="ph ph-pencil-simple text-xl md:text-2xl"></i>
+            </button>
+            <button onclick="removeEditingItem('${item.id}')" class="text-white/50 hover:text-[var(--chalk-red)] p-1.5 md:p-2 transition-colors">
+              <i class="ph ph-eraser text-xl md:text-2xl"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderNotes() {
+      const notes = appData.settings.teacherNotes;
+      const display = document.getElementById('notes-display');
+      display.textContent = notes;
+      display.style.display = notes ? 'block' : 'none';
+    }
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock-display').textContent = formatTime(now);
+
+      let newActiveExam = null;
+      for (const exam of appData.schedule) {
+        if (isCurrentExam(exam.startTime, exam.endTime, now)) {
+          newActiveExam = exam;
+          break;
+        }
+      }
+
+      if ((newActiveExam ? newActiveExam.id : null) !== activeExamId) {
+        activeExamId = newActiveExam ? newActiveExam.id : null;
+        renderSchedule();
+      }
+
+      const countdownContainer = document.getElementById('countdown-container');
+      if (appData.settings.showCountdown && newActiveExam) {
+        countdownContainer.classList.remove('translate-y-[150%]', 'opacity-0', 'hidden');
+        countdownContainer.classList.add('translate-y-0', 'opacity-100');
+        
+        const [endH, endM] = newActiveExam.endTime.split(':').map(Number);
+        const endDate = new Date();
+        endDate.setHours(endH, endM, 0, 0);
+        
+        let diffSeconds = Math.floor((endDate - now) / 1000);
+        if (diffSeconds < 0) diffSeconds = 0; 
+        
+        const m = String(Math.floor(diffSeconds / 60)).padStart(2, '0');
+        const s = String(diffSeconds % 60).padStart(2, '0');
+        document.getElementById('countdown-display').textContent = `${m}:${s}`;
+      } else {
+        countdownContainer.classList.remove('translate-y-0', 'opacity-100');
+        countdownContainer.classList.add('translate-y-[150%]', 'opacity-0');
+        setTimeout(() => {
+          if (!appData.settings.showCountdown || !newActiveExam) countdownContainer.classList.add('hidden');
+        }, 500); 
+      }
+    }
+
+    function autoSaveGlobalSettings() {
+      appData.settings.showCountdown = document.getElementById('setting-countdown').checked;
+      appData.settings.teacherNotes = document.getElementById('setting-notes').value.trim();
+      syncToMainBoard();
+    }
+
+    function syncToMainBoard() {
+      try { localStorage.setItem('boardAppData', JSON.stringify(appData)); } catch (e) {}
+      renderNotes();
+      renderSchedule();
+      updateClock();
+    }
+
+    function openSettings() {
+      editingSchedule = JSON.parse(JSON.stringify(appData.schedule)); 
+      document.getElementById('setting-countdown').checked = appData.settings.showCountdown;
+      document.getElementById('setting-notes').value = appData.settings.teacherNotes;
+      
+      const modal = document.getElementById('settings-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      renderEditingSchedule();
+    }
+
+    function closeSettings() {
+      const modal = document.getElementById('settings-modal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      resetInputFields();
+    }
+
+    function editFromMain(id) {
+      openSettings();
+      editEditingItem(id);
+    }
+
+    function deleteFromMain(id) {
+      if (confirm('確定要從黑板上擦去這個科目嗎？')) {
+        appData.schedule = appData.schedule.filter(item => item.id !== id);
+        activeExamId = null; 
+        syncToMainBoard();
+      }
+    }
+
+    function resetInputFields() {
+      document.getElementById('new-subject').value = '';
+      document.getElementById('new-start').value = '';
+      document.getElementById('new-end').value = '';
+      
+      currentEditId = null;
+      const btn = document.getElementById('btn-submit-item');
+      document.getElementById('submit-text').textContent = '新增';
+      document.getElementById('submit-icon').className = 'ph ph-plus text-lg md:text-xl';
+      btn.className = "col-span-2 border-2 border-[var(--chalk-green)] text-[var(--chalk-green)] hover:bg-[var(--chalk-green)] hover:text-black p-2 flex items-center gap-1 font-bold transition-all w-full md:w-auto justify-center tracking-widest rounded shadow-sm text-sm md:text-base";
+    }
+
+    function addEditingItem() {
+      const subjectInput = document.getElementById('new-subject');
+      const startInput = document.getElementById('new-start');
+      const endInput = document.getElementById('new-end');
+
+      const subject = subjectInput.value.trim();
+      const startTime = startInput.value;
+      const endTime = endInput.value;
+
+      if (subject && startTime && endTime) {
+        if(startTime >= endTime) {
+          alert('結束時間必須晚於開始時間喔！');
+          return;
+        }
+
+        if (currentEditId) {
+          const index = editingSchedule.findIndex(item => item.id === currentEditId);
+          if (index !== -1) {
+            editingSchedule[index] = { ...editingSchedule[index], subject, startTime, endTime };
+          }
+        } else {
+          editingSchedule.push({
+            id: Date.now().toString(),
+            subject,
+            startTime,
+            endTime
+          });
+        }
+
+        editingSchedule.sort((a, b) => a.startTime.localeCompare(b.startTime));
+        
+        appData.schedule = [...editingSchedule];
+        syncToMainBoard();
+        
+        renderEditingSchedule();
+        resetInputFields(); 
+
+        const btn = document.getElementById('btn-submit-item');
+        document.getElementById('submit-text').textContent = '成功儲存！';
+        btn.classList.add('bg-[var(--chalk-green)]', 'text-black');
+        setTimeout(() => {
+          document.getElementById('submit-text').textContent = '新增';
+          btn.classList.remove('bg-[var(--chalk-green)]', 'text-black');
+        }, 1200);
+
+      } else {
+        alert('請把黑板上的資訊填寫完整喔！');
+      }
+    }
+
+    function editEditingItem(id) {
+      const item = editingSchedule.find(i => i.id === id);
+      if (item) {
+        document.getElementById('new-subject').value = item.subject;
+        document.getElementById('new-start').value = item.startTime;
+        document.getElementById('new-end').value = item.endTime;
+        currentEditId = id;
+        
+        const btn = document.getElementById('btn-submit-item');
+        document.getElementById('submit-text').textContent = '更新';
+        document.getElementById('submit-icon').className = 'ph ph-check text-lg md:text-xl';
+        btn.className = "col-span-2 border-2 border-[var(--chalk-yellow)] text-[var(--chalk-yellow)] hover:bg-[var(--chalk-yellow)] hover:text-black p-2 flex items-center gap-1 font-bold transition-all w-full md:w-auto justify-center tracking-widest rounded shadow-sm text-sm md:text-base";
+      }
+    }
+
+    function removeEditingItem(id) {
+      editingSchedule = editingSchedule.filter(item => item.id !== id);
+      if (currentEditId === id) resetInputFields();
+      
+      appData.schedule = [...editingSchedule];
+      syncToMainBoard();
+      
+      renderEditingSchedule();
+    }
+
+    function init() {
+      renderNotes();
+      renderSchedule(); 
+      updateClock();    
+      setInterval(updateClock, 1000);
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+
+  </script>
+</body>
+</html>
